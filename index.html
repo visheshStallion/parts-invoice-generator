@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Parts Invoice Generator</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="app-header no-print">
+  <h1>Parts Invoice Generator</h1>
+  <p>Zahav Automobile Company &rarr; Parts Counter Sales Invoice</p>
+</header>
+
+<main class="layout">
+
+  <!-- ============ INPUT FORM ============ -->
+  <section class="form-panel no-print" aria-label="Invoice input form">
+    <form id="invoice-form">
+
+      <fieldset>
+        <legend>Invoice Details</legend>
+
+        <div class="field-row">
+          <label for="invoiceNo">Invoice No.</label>
+          <input type="text" id="invoiceNo" name="invoiceNo" required />
+        </div>
+
+        <div class="field-row">
+          <label for="invoiceDate">Date</label>
+          <input type="date" id="invoiceDate" name="invoiceDate" required />
+        </div>
+
+        <div class="field-row">
+          <label for="paymentType">Payment Type</label>
+          <select id="paymentType" name="paymentType" required></select>
+        </div>
+
+        <div class="field-row">
+          <label for="accountType">Account Type</label>
+          <select id="accountType" name="accountType" required></select>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Customer</legend>
+
+        <div class="field-row">
+          <label for="customerSelect">Customer</label>
+          <select id="customerSelect" required></select>
+        </div>
+
+        <div class="field-row">
+          <label for="customerId">Customer ID</label>
+          <input type="text" id="customerId" name="customerId" required />
+        </div>
+
+        <div class="field-row">
+          <label for="customerName">Name</label>
+          <input type="text" id="customerName" name="customerName" required />
+        </div>
+
+        <div class="field-row">
+          <label for="customerAddress">Address</label>
+          <input type="text" id="customerAddress" name="customerAddress" required />
+        </div>
+
+        <div class="field-row">
+          <label for="customerBranch">Branch</label>
+          <select id="customerBranch" required></select>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Line Items</legend>
+        <div class="table-scroll">
+          <table id="items-table">
+            <thead>
+              <tr>
+                <th>Part</th>
+                <th>Qty</th>
+                <th>Base Price</th>
+                <th>Discount (per unit)</th>
+                <th>Net Price</th>
+                <th>Amount</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="items-tbody"></tbody>
+          </table>
+        </div>
+        <button type="button" id="addRowBtn" class="btn-secondary">+ Add Part</button>
+      </fieldset>
+
+      <fieldset>
+        <legend>Remarks</legend>
+        <div class="field-row">
+          <label for="refName">Reference name (PFIS from)</label>
+          <input type="text" id="refName" name="refName" placeholder="e.g. MR.MUFTAU" />
+        </div>
+        <div class="field-row">
+          <label for="remarks">Remarks</label>
+          <textarea id="remarks" name="remarks" rows="2"></textarea>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Totals (auto-calculated)</legend>
+        <div class="totals-preview">
+          <div><span>Subtotal</span><strong id="preview-subtotal">NGN 0.00</strong></div>
+          <div><span>VAT (7.5%)</span><strong id="preview-vat">NGN 0.00</strong></div>
+          <div><span>Round Off</span><strong id="preview-round">NGN 0.00</strong></div>
+          <div class="net"><span>Net Payable</span><strong id="preview-net">NGN 0.00</strong></div>
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button type="button" id="printBtn" class="btn-primary">Print / Save as PDF</button>
+        <button type="button" id="resetBtn" class="btn-secondary">Reset Form</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ============ INVOICE PREVIEW ============ -->
+  <section class="invoice-panel" aria-label="Invoice preview">
+    <div id="invoice" class="invoice">
+      <table class="invoice-head">
+        <tr>
+          <td class="company-block">
+            <div class="company-name" id="out-companyName"></div>
+            <div id="out-companyAddress"></div>
+            <div id="out-companyAddress2"></div>
+            <div class="reg-block">
+              <div>TIN Number: <span id="out-tin"></span></div>
+              <div>RC Number: <span id="out-rc"></span></div>
+            </div>
+          </td>
+          <td class="title-block">
+            <div class="invoice-title">PARTS INVOICE</div>
+            <div class="original-tag">ORIGINAL</div>
+            <div class="page-tag">Page: 1 / 1</div>
+          </td>
+        </tr>
+      </table>
+
+      <table class="invoice-meta">
+        <tr>
+          <td class="meta-left">
+            <div><span class="lbl">Name:</span> <span id="out-custName"></span></div>
+            <div><span class="lbl">Address:</span> <span id="out-custAddress"></span></div>
+            <div id="out-custBranch"></div>
+            <div><span class="lbl">Customer ID:</span> <span id="out-custId"></span></div>
+          </td>
+          <td class="meta-right">
+            <div><span class="lbl">PARTS INVOICE</span> <span id="out-invoiceNo"></span></div>
+            <div><span class="lbl">Date</span> <span id="out-date"></span></div>
+            <div><span class="lbl">Payment Type</span> <span id="out-paymentType"></span></div>
+            <div><span class="lbl">Account Type</span> <span id="out-accountType"></span></div>
+          </td>
+        </tr>
+      </table>
+
+      <table class="invoice-items">
+        <thead>
+          <tr>
+            <th class="col-sr">Sr.</th>
+            <th class="col-desc">Description</th>
+            <th class="col-num">Quantity</th>
+            <th class="col-num">Base Price</th>
+            <th class="col-num">Discount</th>
+            <th class="col-num">Price</th>
+            <th class="col-num">Amount NGN</th>
+          </tr>
+        </thead>
+        <tbody id="out-items"></tbody>
+      </table>
+
+      <div class="invoice-remarks" id="out-remarks"></div>
+
+      <table class="invoice-totals">
+        <tr>
+          <td class="words-cell">
+            <span class="lbl">Voucher Amount:</span> <span id="out-words"></span>
+          </td>
+          <td class="totals-cell">
+            <div><span>SUBTOTAL</span><span>NGN</span><span id="out-subtotal"></span></div>
+            <div><span>VAT</span><span>NGN</span><span id="out-vat"></span></div>
+            <div><span>ROUND OFF</span><span>NGN</span><span id="out-round"></span></div>
+          </td>
+        </tr>
+      </table>
+
+      <table class="invoice-net">
+        <tr>
+          <td></td>
+          <td class="net-label">NET PAYABLE</td>
+          <td class="net-currency">NGN</td>
+          <td class="net-amount" id="out-net"></td>
+        </tr>
+      </table>
+
+      <div class="invoice-footer">
+        Voucher Printed by: <span id="out-printedBy">SYSTEM</span>
+        &nbsp;&nbsp; Date: <span id="out-printedDate"></span>
+        &nbsp;&nbsp; Hour: <span id="out-printedHour"></span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
