@@ -24,9 +24,8 @@ const CUSTOMERS = [
   },
 ];
 
-const PAYMENT_TYPES = ["CASH"];
-
-const ACCOUNT_TYPES = ["PARTS"];
+const PAYMENT_TYPES = ["CASH", "CREDIT", "BANK TRANSFER"];
+const ACCOUNT_TYPES = ["PARTS", "SERVICE"];
 
 // Parts catalog: (description, unit price) pairs as they appear on the source invoice.
 // Same description can repeat at a different price (different pack/SKU) — each is its own entry.
