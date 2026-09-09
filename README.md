@@ -1,55 +1,64 @@
 # Parts Invoice Generator
 
-A single-page, no-build web app that reproduces the **Zahav Automobile Company — Parts Counter Sales Invoice** layout as a fillable form. Pick a customer, add parts from a dropdown, and it generates a print-ready invoice matching the original PDF layout (header, line items, VAT, round-off, and amount-in-words).
+A dropdown-driven form that generates a print-ready invoice matching the **Zahav Automobile Company — Parts Counter Sales Invoice** layout, backed by a small server so every saved invoice is stored centrally (not just in one person's browser) and can be exported as one master Excel file at any time.
 
 Seeded from the sample invoice: *Parts Countersales from Kofo Zahav to Zeecar (invc.01)*.
 
-## Features
+## How it works
 
-- Dropdown-driven form: customer, payment type, account type, branch, and parts catalog — no free typing for the fields that matter.
-- Parts catalog with per-SKU pricing (e.g. "OIL FILTER" appears at four different price points, matching the source invoice).
-- Live-calculated Subtotal, VAT (7.5%), Round Off (rounded up to the nearest ₦100, matching the source invoice's rounding), and Net Payable.
-- Automatic "amount in words" (Naira and Kobo).
-- **Invoice No. and Date are locked, auto-generated fields** — Invoice No. auto-increments (stored per-browser in `localStorage`), Date always defaults to today. Neither is manually typeable, so every invoice gets a clean sequential number.
-- **Save to Excel** — every invoice you save is appended to a running log (kept in `localStorage`) and exported as `parts-invoices-log.xlsx` (an "Invoices" sheet with one row per invoice, and a "Line Items" sheet with every part sold). Saving also starts a fresh invoice with the next number. Uses [SheetJS](https://sheetjs.com) client-side — no server, no data leaves your browser.
-- Print / Save-as-PDF button, with a dedicated print stylesheet so only the invoice (not the form) is printed.
-- Zero build step, only one external dependency (SheetJS, loaded from a CDN for the Excel export) — otherwise plain HTML/CSS/JS.
-
-## Running it
-
-No install needed. Any static file server works, e.g.:
-
-```bash
-python -m http.server 5173
+```
+public/            Frontend: form + invoice preview (plain HTML/CSS/JS, no build step)
+  index.html
+  style.css
+  config.js         Editable dropdown/catalog data (customers, parts, branches, payment/account types)
+  app.js
+server.js           Backend: Express app that serves public/ and a small JSON API
+data/records.json   The master record store — every invoice + line item ever saved
+package.json
+render.yaml         One-click deploy blueprint for Render
 ```
 
-Then open `http://localhost:5173`. (Opening `index.html` directly via `file://` also works in most browsers.)
+**Storage:** there's no database to manage. Every time someone clicks **Save Invoice**, the backend appends that invoice to [`data/records.json`](data/records.json) and commits the change to this repo via the GitHub API. That gives you free, durable, versioned storage — every save is a commit, so you get full history for free — and `data/records.json` is always the single source of truth.
 
-Or just publish the folder with **GitHub Pages** (Settings → Pages → deploy from `main` / root) and use it from anywhere.
+**Export:** clicking **Download All Records (Excel)** hits `GET /api/invoices/export`, which reads `data/records.json` fresh and streams back an `.xlsx` with two sheets (`Invoices`, `Line Items`) — always up to date, nothing cached.
+
+**Invoice numbers** are assigned by the server (not the browser), so two people saving invoices at the same time can't collide.
+
+## Running it locally
+
+Requires [Node.js](https://nodejs.org) 18+.
+
+```bash
+npm install
+GITHUB_TOKEN=your_token_here node server.js
+```
+
+Then open `http://localhost:3000`. `GITHUB_TOKEN` needs write access to this repo (see Deployment below) — without it, the app loads fine but saving invoices will fail.
+
+## Deploying (Render, free tier)
+
+1. **Create a GitHub token** the server can use to commit to `data/records.json`:
+   - GitHub → Settings → Developer settings → **Fine-grained personal access tokens** → Generate new token
+   - Repository access: only this repo (`visheshStallion/parts-invoice-generator`)
+   - Permissions: **Contents → Read and write**
+   - Copy the token — you won't see it again.
+
+2. **Deploy to Render:**
+   - Sign in at [render.com](https://render.com) (free account) and connect your GitHub account.
+   - New → **Blueprint**, pick this repo. Render will detect `render.yaml` automatically.
+   - When prompted, paste your token into the `GITHUB_TOKEN` environment variable.
+   - Deploy. Render gives you a URL like `https://parts-invoice-generator.onrender.com` — that's the whole app (form + backend), nothing else to set up.
+
+   *(No blueprint? Create a Web Service manually: Runtime = Node, Build Command = `npm install`, Start Command = `node server.js`, then add the same env vars listed in `render.yaml`.)*
+
+Note: Render's free tier spins the service down after periods of inactivity — the first request after a while can take ~30-60 seconds to wake up.
 
 ## Customizing the dropdown data
 
-All catalog/dropdown values live in [`config.js`](config.js):
-
-- `COMPANY` — the seller header block (name, address, TIN, RC number).
-- `BRANCHES` — customer branch/location codes.
-- `CUSTOMERS` — customer name, ID, address, default branch.
-- `PAYMENT_TYPES` / `ACCOUNT_TYPES` — dropdown options.
-- `PARTS_CATALOG` — `{ code, description, basePrice }` entries. Add a new line to add a new part to the dropdown; add another entry with the same description at a different price to represent a different SKU/pack size.
-- `VAT_RATE` — currently `0.075` (7.5%), matching the source invoice.
-
-This starter ships with only the exact customer/parts/branch that appear on the sample invoice — extend `config.js` with more entries as needed.
-
-## File structure
-
-```
-index.html   Form + invoice preview markup
-style.css    Form styling + invoice print layout
-config.js    Editable dropdown/catalog data
-app.js       Form logic, calculations, and invoice rendering
-```
+All catalog/dropdown values live in [`public/config.js`](public/config.js): `COMPANY`, `BRANCHES`, `CUSTOMERS`, `PAYMENT_TYPES`, `ACCOUNT_TYPES`, `PARTS_CATALOG`, `VAT_RATE`. Edit and push — no redeploy needed for static frontend changes, Render just serves the file as-is (a new deploy is only needed if `server.js` or `package.json` change).
 
 ## Notes
 
-- Discounts are entered as a per-unit ₦ amount and subtracted from the base price to get the "Price" shown on the invoice — matching the source PDF's `Base Price` / `Discount` / `Price` columns.
-- Rounding: Net Payable is rounded **up** to the nearest ₦100; the difference is shown as `Round Off`, matching the source invoice (`1,214,672.60` → `1,214,700.00`, round off `27.40`).
+- Discounts are entered as a per-unit ₦ amount and subtracted from the base price — matching the source PDF's `Base Price` / `Discount` / `Price` columns.
+- Net Payable is rounded **up** to the nearest ₦100; the difference is shown as `Round Off`, matching the source invoice (`1,214,672.60` → `1,214,700.00`, round off `27.40`).
+- This app is currently **open access**: anyone with the URL can save an invoice or download the full records file. There's no login. Ask if you'd like a shared-password gate added later.

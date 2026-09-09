@@ -269,89 +269,78 @@ function formatDisplayDate(isoDate) {
 }
 
 // ---------------------------------------------------------------------------
-// Invoice number auto-increment (stored locally, per browser)
+// Backend API — invoices are stored centrally (server-side), not per-browser.
+// The server assigns the invoice number to avoid collisions between users.
 // ---------------------------------------------------------------------------
 
-function nextInvoiceNumber() {
-  const key = "partsInvoice.lastSeq";
-  const last = Number(localStorage.getItem(key) || "0");
-  const next = last + 1;
-  localStorage.setItem(key, String(next));
-  return `${COMPANY.invoicePrefix} - ${String(next).padStart(8, "0")}`;
-}
-
-// ---------------------------------------------------------------------------
-// Excel log (every saved invoice is appended here, then re-exported as one
-// workbook so you get a running record of every invoice generated in this
-// browser). Stored in localStorage — nothing leaves the browser.
-// ---------------------------------------------------------------------------
-
-const LOG_KEY = "partsInvoice.excelLog";
-
-function loadLog() {
+async function fetchNextInvoiceNumber() {
   try {
-    const raw = JSON.parse(localStorage.getItem(LOG_KEY) || "null");
-    if (raw && Array.isArray(raw.invoices) && Array.isArray(raw.items)) return raw;
-  } catch (e) {}
-  return { invoices: [], items: [] };
+    const res = await fetch("/api/invoices/next-number");
+    if (!res.ok) throw new Error(await res.text());
+    const { invoiceNo } = await res.json();
+    return invoiceNo;
+  } catch (e) {
+    console.error("Could not reach backend for next invoice number:", e);
+    return `${COMPANY.invoicePrefix} - ????????`;
+  }
 }
 
-function saveLog(log) {
-  localStorage.setItem(LOG_KEY, JSON.stringify(log));
+async function updateLogStatus() {
+  const statusEl = el("logStatus");
+  try {
+    const res = await fetch("/api/invoices/count");
+    if (!res.ok) throw new Error(await res.text());
+    const { count } = await res.json();
+    statusEl.textContent = count
+      ? `${count} invoice${count === 1 ? "" : "s"} saved on the server so far.`
+      : "No invoices saved yet — click \"Save Invoice\" to record this one.";
+  } catch (e) {
+    statusEl.textContent = "Could not reach the backend — saving/downloading records is unavailable right now.";
+  }
 }
 
-function updateLogStatus() {
-  const log = loadLog();
-  el("logStatus").textContent = log.invoices.length
-    ? `${log.invoices.length} invoice${log.invoices.length === 1 ? "" : "s"} saved to Excel log in this browser.`
-    : "No invoices saved yet — click \"Save to Excel\" to record this one.";
-}
-
-function saveCurrentInvoiceToExcel() {
+async function saveCurrentInvoiceToServer() {
   readRowsFromDom();
   const { lineItems, subtotal, vat, roundOff, netPayable } = computeTotals();
-  const invoiceNo = el("invoiceNo").value;
   const branch = BRANCHES[customerBranchSelect.value];
 
-  const log = loadLog();
-  log.invoices.push({
-    "Invoice No": invoiceNo,
-    Date: formatDisplayDate(el("invoiceDate").value),
-    "Customer ID": el("customerId").value,
-    "Customer Name": el("customerName").value,
-    Address: el("customerAddress").value,
-    Branch: branch ? branch.label : "",
-    "Payment Type": paymentTypeSelect.value ? PAYMENT_TYPES[paymentTypeSelect.value] : "",
-    "Account Type": accountTypeSelect.value ? ACCOUNT_TYPES[accountTypeSelect.value] : "",
-    Remarks: el("remarks").value || REMARKS_TEMPLATE(el("customerName").value, el("refName").value),
-    Subtotal: Number(subtotal.toFixed(2)),
-    VAT: Number(vat.toFixed(2)),
-    "Round Off": Number(roundOff.toFixed(2)),
-    "Net Payable": Number(netPayable.toFixed(2)),
-    "Amount In Words": amountToWords(netPayable),
+  const invoice = {
+    date: formatDisplayDate(el("invoiceDate").value),
+    customerId: el("customerId").value,
+    customerName: el("customerName").value,
+    address: el("customerAddress").value,
+    branch: branch ? branch.label : "",
+    paymentType: paymentTypeSelect.value ? PAYMENT_TYPES[paymentTypeSelect.value] : "",
+    accountType: accountTypeSelect.value ? ACCOUNT_TYPES[accountTypeSelect.value] : "",
+    remarks: el("remarks").value || REMARKS_TEMPLATE(el("customerName").value, el("refName").value),
+    subtotal: Number(subtotal.toFixed(2)),
+    vat: Number(vat.toFixed(2)),
+    roundOff: Number(roundOff.toFixed(2)),
+    netPayable: Number(netPayable.toFixed(2)),
+    amountInWords: amountToWords(netPayable),
+  };
+
+  const items = lineItems.map((li, idx) => ({
+    sr: idx + 1,
+    description: li.part.description,
+    quantity: li.qty,
+    basePrice: Number(li.part.basePrice.toFixed(2)),
+    discount: Number(li.discount.toFixed(2)),
+    price: Number(li.netPrice.toFixed(2)),
+    amount: Number(li.amount.toFixed(2)),
+  }));
+
+  const res = await fetch("/api/invoices", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ invoice, items }),
   });
 
-  lineItems.forEach((li, idx) => {
-    log.items.push({
-      "Invoice No": invoiceNo,
-      Sr: idx + 1,
-      Description: li.part.description,
-      Quantity: li.qty,
-      "Base Price": Number(li.part.basePrice.toFixed(2)),
-      Discount: Number(li.discount.toFixed(2)),
-      Price: Number(li.netPrice.toFixed(2)),
-      "Amount NGN": Number(li.amount.toFixed(2)),
-    });
-  });
-
-  saveLog(log);
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(log.invoices), "Invoices");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(log.items), "Line Items");
-  XLSX.writeFile(wb, "parts-invoices-log.xlsx");
-
-  updateLogStatus();
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Save failed (HTTP ${res.status})`);
+  }
+  const { invoiceNo } = await res.json();
   return invoiceNo;
 }
 
@@ -375,10 +364,24 @@ el("printBtn").addEventListener("click", () => {
   window.print();
 });
 
-el("saveExcelBtn").addEventListener("click", () => {
-  const invoiceNo = saveCurrentInvoiceToExcel();
-  alert(`Saved invoice ${invoiceNo} to parts-invoices-log.xlsx (check your Downloads folder).\n\nStarting a new invoice with the next number.`);
-  initForm(true);
+el("saveExcelBtn").addEventListener("click", async () => {
+  const btn = el("saveExcelBtn");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+  try {
+    const invoiceNo = await saveCurrentInvoiceToServer();
+    alert(`Saved invoice ${invoiceNo} to the server.\n\nStarting a new invoice with the next number.`);
+    await initForm(true);
+  } catch (e) {
+    alert(`Could not save this invoice: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Save Invoice";
+  }
+});
+
+el("downloadAllBtn").addEventListener("click", () => {
+  window.location.href = "/api/invoices/export";
 });
 
 el("resetBtn").addEventListener("click", () => {
@@ -390,17 +393,20 @@ el("resetBtn").addEventListener("click", () => {
 // Init
 // ---------------------------------------------------------------------------
 
-function initForm(assignNewInvoiceNo) {
+async function initForm(assignNewInvoiceNo) {
   initStaticDropdowns();
   applyCustomerSelection();
 
-  el("invoiceNo").value = assignNewInvoiceNo || !el("invoiceNo").value ? nextInvoiceNumber() : el("invoiceNo").value;
+  el("invoiceNo").value = "Loading…";
   el("invoiceDate").value = new Date().toISOString().slice(0, 10);
   el("refName").value = "";
   el("remarks").value = "";
 
   rows = [newRow(0, 1)];
   renderRows();
+  updatePreview();
+
+  el("invoiceNo").value = await fetchNextInvoiceNumber();
   updatePreview();
   updateLogStatus();
 }

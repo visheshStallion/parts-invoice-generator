@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: parts-invoice-generator
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_OWNER
+        value: visheshStallion
+      - key: GITHUB_REPO
+        value: parts-invoice-generator
+      - key: GITHUB_BRANCH
+        value: master
+      - key: INVOICE_PREFIX
+        value: "X 5017"
