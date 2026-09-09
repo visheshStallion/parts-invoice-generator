@@ -281,6 +281,81 @@ function nextInvoiceNumber() {
 }
 
 // ---------------------------------------------------------------------------
+// Excel log (every saved invoice is appended here, then re-exported as one
+// workbook so you get a running record of every invoice generated in this
+// browser). Stored in localStorage — nothing leaves the browser.
+// ---------------------------------------------------------------------------
+
+const LOG_KEY = "partsInvoice.excelLog";
+
+function loadLog() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LOG_KEY) || "null");
+    if (raw && Array.isArray(raw.invoices) && Array.isArray(raw.items)) return raw;
+  } catch (e) {}
+  return { invoices: [], items: [] };
+}
+
+function saveLog(log) {
+  localStorage.setItem(LOG_KEY, JSON.stringify(log));
+}
+
+function updateLogStatus() {
+  const log = loadLog();
+  el("logStatus").textContent = log.invoices.length
+    ? `${log.invoices.length} invoice${log.invoices.length === 1 ? "" : "s"} saved to Excel log in this browser.`
+    : "No invoices saved yet — click \"Save to Excel\" to record this one.";
+}
+
+function saveCurrentInvoiceToExcel() {
+  readRowsFromDom();
+  const { lineItems, subtotal, vat, roundOff, netPayable } = computeTotals();
+  const invoiceNo = el("invoiceNo").value;
+  const branch = BRANCHES[customerBranchSelect.value];
+
+  const log = loadLog();
+  log.invoices.push({
+    "Invoice No": invoiceNo,
+    Date: formatDisplayDate(el("invoiceDate").value),
+    "Customer ID": el("customerId").value,
+    "Customer Name": el("customerName").value,
+    Address: el("customerAddress").value,
+    Branch: branch ? branch.label : "",
+    "Payment Type": paymentTypeSelect.value ? PAYMENT_TYPES[paymentTypeSelect.value] : "",
+    "Account Type": accountTypeSelect.value ? ACCOUNT_TYPES[accountTypeSelect.value] : "",
+    Remarks: el("remarks").value || REMARKS_TEMPLATE(el("customerName").value, el("refName").value),
+    Subtotal: Number(subtotal.toFixed(2)),
+    VAT: Number(vat.toFixed(2)),
+    "Round Off": Number(roundOff.toFixed(2)),
+    "Net Payable": Number(netPayable.toFixed(2)),
+    "Amount In Words": amountToWords(netPayable),
+  });
+
+  lineItems.forEach((li, idx) => {
+    log.items.push({
+      "Invoice No": invoiceNo,
+      Sr: idx + 1,
+      Description: li.part.description,
+      Quantity: li.qty,
+      "Base Price": Number(li.part.basePrice.toFixed(2)),
+      Discount: Number(li.discount.toFixed(2)),
+      Price: Number(li.netPrice.toFixed(2)),
+      "Amount NGN": Number(li.amount.toFixed(2)),
+    });
+  });
+
+  saveLog(log);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(log.invoices), "Invoices");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(log.items), "Line Items");
+  XLSX.writeFile(wb, "parts-invoices-log.xlsx");
+
+  updateLogStatus();
+  return invoiceNo;
+}
+
+// ---------------------------------------------------------------------------
 // Form-level listeners
 // ---------------------------------------------------------------------------
 
@@ -298,6 +373,12 @@ el("printBtn").addEventListener("click", () => {
   readRowsFromDom();
   updatePreview();
   window.print();
+});
+
+el("saveExcelBtn").addEventListener("click", () => {
+  const invoiceNo = saveCurrentInvoiceToExcel();
+  alert(`Saved invoice ${invoiceNo} to parts-invoices-log.xlsx (check your Downloads folder).\n\nStarting a new invoice with the next number.`);
+  initForm(true);
 });
 
 el("resetBtn").addEventListener("click", () => {
@@ -321,6 +402,7 @@ function initForm(assignNewInvoiceNo) {
   rows = [newRow(0, 1)];
   renderRows();
   updatePreview();
+  updateLogStatus();
 }
 
 initForm(true);

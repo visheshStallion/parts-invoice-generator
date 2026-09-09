@@ -23,13 +23,13 @@
         <legend>Invoice Details</legend>
 
         <div class="field-row">
-          <label for="invoiceNo">Invoice No.</label>
-          <input type="text" id="invoiceNo" name="invoiceNo" required />
+          <label for="invoiceNo">Invoice No. <span class="auto-tag">auto-generated</span></label>
+          <input type="text" id="invoiceNo" name="invoiceNo" readonly required />
         </div>
 
         <div class="field-row">
-          <label for="invoiceDate">Date</label>
-          <input type="date" id="invoiceDate" name="invoiceDate" required />
+          <label for="invoiceDate">Date <span class="auto-tag">today</span></label>
+          <input type="date" id="invoiceDate" name="invoiceDate" readonly required />
         </div>
 
         <div class="field-row">
@@ -116,9 +116,11 @@
       </fieldset>
 
       <div class="actions">
-        <button type="button" id="printBtn" class="btn-primary">Print / Save as PDF</button>
+        <button type="button" id="saveExcelBtn" class="btn-primary">Save to Excel</button>
+        <button type="button" id="printBtn" class="btn-secondary">Print / Save as PDF</button>
         <button type="button" id="resetBtn" class="btn-secondary">Reset Form</button>
       </div>
+      <p class="log-status" id="logStatus"></p>
     </form>
   </section>
 
@@ -210,6 +212,7 @@
 
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>

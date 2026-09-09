@@ -10,9 +10,10 @@ Seeded from the sample invoice: *Parts Countersales from Kofo Zahav to Zeecar (i
 - Parts catalog with per-SKU pricing (e.g. "OIL FILTER" appears at four different price points, matching the source invoice).
 - Live-calculated Subtotal, VAT (7.5%), Round Off (rounded up to the nearest ₦100, matching the source invoice's rounding), and Net Payable.
 - Automatic "amount in words" (Naira and Kobo).
-- Auto-incrementing invoice number (stored per-browser in `localStorage`).
+- **Invoice No. and Date are locked, auto-generated fields** — Invoice No. auto-increments (stored per-browser in `localStorage`), Date always defaults to today. Neither is manually typeable, so every invoice gets a clean sequential number.
+- **Save to Excel** — every invoice you save is appended to a running log (kept in `localStorage`) and exported as `parts-invoices-log.xlsx` (an "Invoices" sheet with one row per invoice, and a "Line Items" sheet with every part sold). Saving also starts a fresh invoice with the next number. Uses [SheetJS](https://sheetjs.com) client-side — no server, no data leaves your browser.
 - Print / Save-as-PDF button, with a dedicated print stylesheet so only the invoice (not the form) is printed.
-- Zero build step, zero dependencies — plain HTML/CSS/JS.
+- Zero build step, only one external dependency (SheetJS, loaded from a CDN for the Excel export) — otherwise plain HTML/CSS/JS.
 
 ## Running it
 

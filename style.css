@@ -173,6 +173,30 @@ textarea { resize: vertical; }
   display: flex;
   gap: 10px;
   margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.auto-tag {
+  font-weight: 400;
+  text-transform: none;
+  font-size: 11px;
+  color: var(--accent);
+  background: #e8f0fc;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: 4px;
+}
+
+input[readonly] {
+  background: #f1f2f4;
+  color: #444;
+  cursor: not-allowed;
+}
+
+.log-status {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 8px 0 0;
 }
 
 .totals-preview {
