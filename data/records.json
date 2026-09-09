@@ -1,17 +1,5 @@
 {
-  "lastSeq": 1,
-  "invoices": [
-    {
-      "invoiceNo": "X 5017 - 00000001",
-      "customerName": "TEST CUSTOMER (contents-api verification, will be reverted)",
-      "netPayable": 100.0
-    }
-  ],
-  "items": [
-    {
-      "invoiceNo": "X 5017 - 00000001",
-      "description": "TEST PART",
-      "quantity": 1
-    }
-  ]
+  "lastSeq": 0,
+  "invoices": [],
+  "items": []
 }
