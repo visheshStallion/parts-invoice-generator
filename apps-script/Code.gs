@@ -112,6 +112,14 @@ function getOrCreateSheet(name, headers) {
   return sheet;
 }
 
+// Codes like "0034" or a Customer ID that happens to look numeric get silently
+// turned into 34 by Sheets unless the column is forced to plain-text format —
+// which also makes future manual entries (typed by whoever maintains the
+// sheet) keep their leading zeros instead of round-tripping through this bug.
+function forceTextColumn(sheet, colIndex) {
+  sheet.getRange(1, colIndex, sheet.getMaxRows(), 1).setNumberFormat("@");
+}
+
 function getMetaSheet() {
   return getOrCreateSheet(META_SHEET, ["Key", "Value"]);
 }
@@ -198,9 +206,12 @@ function seedIfEmpty(sheet, rows) {
 
 function getMasterSheets() {
   var customers = getOrCreateSheet(CUSTOMERS_SHEET, CUSTOMERS_HEADERS);
+  forceTextColumn(customers, 1); // ID
+  forceTextColumn(customers, 4); // Branch Code
   seedIfEmpty(customers, SEED_CUSTOMERS);
 
   var branches = getOrCreateSheet(BRANCHES_SHEET, BRANCHES_HEADERS);
+  forceTextColumn(branches, 1); // Code
   seedIfEmpty(branches, SEED_BRANCHES);
 
   var parts = getOrCreateSheet(PARTS_SHEET, PARTS_HEADERS);
