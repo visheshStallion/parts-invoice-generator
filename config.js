@@ -55,5 +55,7 @@ const REMARKS_TEMPLATE = (customerName, refName) =>
 // --- Google Sheets storage (see README.md "Connecting a Google Sheet") ---
 // GOOGLE_SHEETS_WEBAPP_URL: the Apps Script Web App URL, used to save each invoice
 // GOOGLE_SHEET_EXPORT_URL: the Sheet's built-in Excel export link, used for "Download All Records"
-const GOOGLE_SHEETS_WEBAPP_URL = "";
-const GOOGLE_SHEET_EXPORT_URL = "";
+const GOOGLE_SHEETS_WEBAPP_URL =
+  "https://script.google.com/macros/s/AKfycbwoRPpkC7qq09aFsAZmmsWBaXaFaw1DfRX-oSdWOxs7SlaoIOkFQP_tXTh8Q2Kq_Fb7/exec";
+const GOOGLE_SHEET_EXPORT_URL =
+  "https://docs.google.com/spreadsheets/d/14xmH27ev7z0lUxVKw4duujjHYsJpSUtmfMkznMLp9iw/export?format=xlsx";
