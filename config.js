@@ -9,7 +9,7 @@
 // They're declared with `let` (not `const`) so app.js can do that swap.
 
 const COMPANY = {
-  name: "ZAHAV AUTOMOBILE COMPANY NIGE",
+  name: "AUTOMOBILE COMPANY NIGE",
   address: "PLOT NO. 179/180, KOFO ABYAMI STREET",
   addressLine2: "LAGOS - NIGERIA - NIGERIA",
   tinNumber: "2521500623957",
