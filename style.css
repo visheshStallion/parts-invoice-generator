@@ -22,9 +22,20 @@ body {
   padding: 18px 24px;
   background: #101828;
   color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 .app-header h1 { margin: 0 0 4px; font-size: 20px; }
 .app-header p { margin: 0; color: #c3c9d6; font-size: 13px; }
+.app-logo {
+  height: 40px;
+  width: auto;
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 4px;
+  padding: 4px;
+}
 
 .layout {
   display: grid;
