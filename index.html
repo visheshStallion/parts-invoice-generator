@@ -41,24 +41,32 @@
           <label for="accountType">Account Type</label>
           <select id="accountType" name="accountType" required></select>
         </div>
+
+        <div class="field-row">
+          <label for="submittedBy">Form Submitted By</label>
+          <input type="text" id="submittedBy" name="submittedBy" placeholder="Your name" required />
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Customer</legend>
 
         <div class="field-row">
-          <label for="customerSelect">Customer</label>
-          <select id="customerSelect" required></select>
+          <label for="customerName">Customer</label>
+          <input
+            type="text"
+            id="customerName"
+            name="customerName"
+            list="customerNameOptions"
+            placeholder="Type a customer name"
+            required
+          />
+          <datalist id="customerNameOptions"></datalist>
         </div>
 
         <div class="field-row">
           <label for="customerId">Customer ID</label>
           <input type="text" id="customerId" name="customerId" required />
-        </div>
-
-        <div class="field-row">
-          <label for="customerName">Name</label>
-          <input type="text" id="customerName" name="customerName" required />
         </div>
 
         <div class="field-row">

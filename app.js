@@ -76,7 +76,7 @@ const el = (id) => document.getElementById(id);
 const itemsTbody = el("items-tbody");
 const paymentTypeSelect = el("paymentType");
 const accountTypeSelect = el("accountType");
-const customerSelect = el("customerSelect");
+const customerNameInput = el("customerName");
 const customerBranchSelect = el("customerBranch");
 
 // ---------------------------------------------------------------------------
@@ -93,20 +93,34 @@ function populateSelect(select, items, formatter = (x) => x) {
   });
 }
 
+function populateCustomerDatalist() {
+  const list = el("customerNameOptions");
+  list.innerHTML = "";
+  CUSTOMERS.forEach((c) => {
+    const opt = document.createElement("option");
+    opt.value = c.name;
+    list.appendChild(opt);
+  });
+}
+
 function initStaticDropdowns() {
   populateSelect(paymentTypeSelect, PAYMENT_TYPES);
   populateSelect(accountTypeSelect, ACCOUNT_TYPES);
-  populateSelect(customerSelect, CUSTOMERS, (c) => `${c.name} (ID: ${c.id})`);
+  populateCustomerDatalist();
   populateSelect(customerBranchSelect, BRANCHES, (b) => b.label);
 }
 
+// Customer is a free-text box (with datalist suggestions) rather than a
+// locked dropdown, so one-off customers not in the master data can still be
+// billed. Typing a name that exactly matches a known customer auto-fills
+// ID/Address/Branch; anything else is left for manual entry.
 function applyCustomerSelection() {
-  const c = CUSTOMERS[customerSelect.value];
-  if (!c) return;
-  el("customerId").value = c.id;
-  el("customerName").value = c.name;
-  el("customerAddress").value = c.address;
-  const branchIdx = BRANCHES.findIndex((b) => b.code === c.branchCode);
+  const typed = customerNameInput.value.trim().toLowerCase();
+  const match = CUSTOMERS.find((c) => c.name.toLowerCase() === typed);
+  if (!match) return;
+  el("customerId").value = match.id;
+  el("customerAddress").value = match.address;
+  const branchIdx = BRANCHES.findIndex((b) => b.code === match.branchCode);
   if (branchIdx >= 0) customerBranchSelect.value = branchIdx;
 }
 
@@ -256,7 +270,7 @@ function renderInvoice() {
   el("out-net").textContent = fmt(netPayable);
 
   const now = new Date();
-  el("out-printedBy").textContent = "SYSTEM";
+  el("out-printedBy").textContent = el("submittedBy").value || "SYSTEM";
   el("out-printedDate").textContent = formatDisplayDate(el("invoiceDate").value);
   el("out-printedHour").textContent = now.toTimeString().slice(0, 5);
 }
@@ -351,6 +365,7 @@ async function saveCurrentInvoiceToSheet() {
     roundOff: Number(roundOff.toFixed(2)),
     netPayable: Number(netPayable.toFixed(2)),
     amountInWords: amountToWords(netPayable),
+    submittedBy: el("submittedBy").value,
   };
 
   const items = lineItems.map((li, idx) => ({
@@ -381,11 +396,11 @@ async function saveCurrentInvoiceToSheet() {
 
 document.getElementById("invoice-form").addEventListener("input", (e) => {
   if (itemsTbody.contains(e.target)) return; // handled separately above
+  if (e.target === customerNameInput) applyCustomerSelection();
   updatePreview();
 });
 document.getElementById("invoice-form").addEventListener("change", (e) => {
   if (itemsTbody.contains(e.target)) return;
-  if (e.target === customerSelect) applyCustomerSelection();
   updatePreview();
 });
 
@@ -434,12 +449,14 @@ el("resetBtn").addEventListener("click", () => {
 
 async function initForm(assignNewInvoiceNo) {
   initStaticDropdowns();
+  customerNameInput.value = CUSTOMERS[0] ? CUSTOMERS[0].name : "";
   applyCustomerSelection();
 
   el("invoiceNo").value = "Loading…";
   el("invoiceDate").value = new Date().toISOString().slice(0, 10);
   el("refName").value = "";
   el("remarks").value = "";
+  el("submittedBy").value = "";
 
   rows = [newRow(0, 1)];
   renderRows();

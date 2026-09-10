@@ -28,7 +28,7 @@ var ACCOUNT_TYPES_SHEET = "Account Types";
 var INVOICE_HEADERS = [
   "Invoice No", "Saved At", "Date", "Customer ID", "Customer Name", "Address",
   "Branch", "Payment Type", "Account Type", "Remarks",
-  "Subtotal", "VAT", "Round Off", "Net Payable", "Amount In Words",
+  "Subtotal", "VAT", "Round Off", "Net Payable", "Amount In Words", "Submitted By",
 ];
 
 var ITEM_HEADERS = [
@@ -178,6 +178,7 @@ function appendInvoiceRow(invoiceNo, savedAt, invoice) {
     invoice.roundOff,
     invoice.netPayable,
     invoice.amountInWords,
+    invoice.submittedBy,
   ]);
 }
 
