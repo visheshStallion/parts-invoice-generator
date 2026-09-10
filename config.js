@@ -1,6 +1,12 @@
 // Editable configuration for the Parts Invoice Generator.
-// Values below are seeded from the source invoice (Kofo Zahav -> Zeecar, Invoice X 5017 - 00000001).
-// Add/edit entries here to extend the dropdown lists.
+// Values below are seeded from the source invoice (Kofo Zahav -> Zeecar, Invoice X 5017 - 00000001)
+// and used as a fallback whenever the Google Sheet master data can't be reached.
+//
+// Once a Google Sheet is connected (see GOOGLE_SHEETS_WEBAPP_URL below), the dropdown
+// arrays here (BRANCHES, CUSTOMERS, PAYMENT_TYPES, ACCOUNT_TYPES, PARTS_CATALOG) are
+// REPLACED at page load with whatever is in the Sheet's Branches/Customers/Payment
+// Types/Account Types/Parts tabs — edit rows there, not here, once it's connected.
+// They're declared with `let` (not `const`) so app.js can do that swap.
 
 const COMPANY = {
   name: "ZAHAV AUTOMOBILE COMPANY NIGE",
@@ -11,11 +17,11 @@ const COMPANY = {
   invoicePrefix: "X 5017",
 };
 
-const BRANCHES = [
+let BRANCHES = [
   { code: "0034", label: "(0034) LAGOS NIGERIA" },
 ];
 
-const CUSTOMERS = [
+let CUSTOMERS = [
   {
     id: "68612",
     name: "ZEECAR GLOBAL LIMITED",
@@ -24,12 +30,12 @@ const CUSTOMERS = [
   },
 ];
 
-const PAYMENT_TYPES = ["CASH", "CREDIT", "BANK TRANSFER"];
-const ACCOUNT_TYPES = ["PARTS", "SERVICE"];
+let PAYMENT_TYPES = ["CASH", "CREDIT", "BANK TRANSFER"];
+let ACCOUNT_TYPES = ["PARTS", "SERVICE"];
 
 // Parts catalog: (description, unit price) pairs as they appear on the source invoice.
 // Same description can repeat at a different price (different pack/SKU) — each is its own entry.
-const PARTS_CATALOG = [
+let PARTS_CATALOG = [
   { code: "OF-20000", description: "OIL FILTER", basePrice: 20000.0 },
   { code: "OF-14464", description: "OIL FILTER", basePrice: 14464.0 },
   { code: "OF-18000", description: "OIL FILTER", basePrice: 18000.0 },
@@ -45,3 +51,9 @@ const VAT_RATE = 0.075; // 7.5%, matches source invoice (84,744.60 / 1,129,928.0
 
 const REMARKS_TEMPLATE = (customerName, refName) =>
   `PARTS COUNTER SALES FROM KOFO ZAHAV TO ${customerName}. AS PER PARTS UTILISED PFIS FROM ${refName || "____"}.`;
+
+// --- Google Sheets storage (see README.md "Connecting a Google Sheet") ---
+// GOOGLE_SHEETS_WEBAPP_URL: the Apps Script Web App URL, used to save each invoice
+// GOOGLE_SHEET_EXPORT_URL: the Sheet's built-in Excel export link, used for "Download All Records"
+const GOOGLE_SHEETS_WEBAPP_URL = "";
+const GOOGLE_SHEET_EXPORT_URL = "";

@@ -269,90 +269,110 @@ function formatDisplayDate(isoDate) {
 }
 
 // ---------------------------------------------------------------------------
-// Invoice number auto-increment (stored locally, per browser)
+// Google Sheets backend — every invoice is saved centrally (not per-browser)
+// by POSTing to a Google Apps Script Web App bound to a Sheet. The script
+// assigns the invoice number (avoids collisions between users) and appends
+// rows to the "Invoices" / "Line Items" tabs. See README.md for setup.
 // ---------------------------------------------------------------------------
 
-function nextInvoiceNumber() {
-  const key = "partsInvoice.lastSeq";
-  const last = Number(localStorage.getItem(key) || "0");
-  const next = last + 1;
-  localStorage.setItem(key, String(next));
-  return `${COMPANY.invoicePrefix} - ${String(next).padStart(8, "0")}`;
+function sheetsConfigured() {
+  return Boolean(GOOGLE_SHEETS_WEBAPP_URL);
 }
 
-// ---------------------------------------------------------------------------
-// Excel log (every saved invoice is appended here, then re-exported as one
-// workbook so you get a running record of every invoice generated in this
-// browser). Stored in localStorage — nothing leaves the browser.
-// ---------------------------------------------------------------------------
-
-const LOG_KEY = "partsInvoice.excelLog";
-
-function loadLog() {
+// Replaces the local BRANCHES/CUSTOMERS/PARTS_CATALOG/PAYMENT_TYPES/ACCOUNT_TYPES
+// (from config.js) with whatever is in the Sheet's master-data tabs, so editing
+// rows there — not this code — is how you manage the dropdowns. Falls back to
+// the config.js defaults if Sheets isn't connected or the request fails.
+async function loadMasterData() {
+  if (!sheetsConfigured()) return;
   try {
-    const raw = JSON.parse(localStorage.getItem(LOG_KEY) || "null");
-    if (raw && Array.isArray(raw.invoices) && Array.isArray(raw.items)) return raw;
-  } catch (e) {}
-  return { invoices: [], items: [] };
+    const res = await fetch(`${GOOGLE_SHEETS_WEBAPP_URL}?action=masters`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    if (Array.isArray(data.branches) && data.branches.length) BRANCHES = data.branches;
+    if (Array.isArray(data.customers) && data.customers.length) CUSTOMERS = data.customers;
+    if (Array.isArray(data.parts) && data.parts.length) PARTS_CATALOG = data.parts;
+    if (Array.isArray(data.paymentTypes) && data.paymentTypes.length) PAYMENT_TYPES = data.paymentTypes;
+    if (Array.isArray(data.accountTypes) && data.accountTypes.length) ACCOUNT_TYPES = data.accountTypes;
+  } catch (e) {
+    console.error("Could not load master data from Google Sheets, using config.js defaults:", e);
+  }
 }
 
-function saveLog(log) {
-  localStorage.setItem(LOG_KEY, JSON.stringify(log));
+async function fetchNextInvoiceNumber() {
+  if (!sheetsConfigured()) return `${COMPANY.invoicePrefix} - ????????`;
+  try {
+    const res = await fetch(`${GOOGLE_SHEETS_WEBAPP_URL}?action=next-number`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data.invoiceNo;
+  } catch (e) {
+    console.error("Could not reach Google Sheets backend for next invoice number:", e);
+    return `${COMPANY.invoicePrefix} - ????????`;
+  }
 }
 
-function updateLogStatus() {
-  const log = loadLog();
-  el("logStatus").textContent = log.invoices.length
-    ? `${log.invoices.length} invoice${log.invoices.length === 1 ? "" : "s"} saved to Excel log in this browser.`
-    : "No invoices saved yet — click \"Save to Excel\" to record this one.";
+async function updateLogStatus() {
+  const statusEl = el("logStatus");
+  if (!sheetsConfigured()) {
+    statusEl.textContent =
+      "Google Sheets isn't connected yet — set GOOGLE_SHEETS_WEBAPP_URL in config.js (see README.md).";
+    return;
+  }
+  try {
+    const res = await fetch(`${GOOGLE_SHEETS_WEBAPP_URL}?action=count`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    statusEl.textContent = data.count
+      ? `${data.count} invoice${data.count === 1 ? "" : "s"} saved to Google Sheets so far.`
+      : "No invoices saved yet — click \"Save Invoice\" to record this one.";
+  } catch (e) {
+    statusEl.textContent = "Could not reach the Google Sheets backend — saving/downloading is unavailable right now.";
+  }
 }
 
-function saveCurrentInvoiceToExcel() {
+async function saveCurrentInvoiceToSheet() {
   readRowsFromDom();
   const { lineItems, subtotal, vat, roundOff, netPayable } = computeTotals();
-  const invoiceNo = el("invoiceNo").value;
   const branch = BRANCHES[customerBranchSelect.value];
 
-  const log = loadLog();
-  log.invoices.push({
-    "Invoice No": invoiceNo,
-    Date: formatDisplayDate(el("invoiceDate").value),
-    "Customer ID": el("customerId").value,
-    "Customer Name": el("customerName").value,
-    Address: el("customerAddress").value,
-    Branch: branch ? branch.label : "",
-    "Payment Type": paymentTypeSelect.value ? PAYMENT_TYPES[paymentTypeSelect.value] : "",
-    "Account Type": accountTypeSelect.value ? ACCOUNT_TYPES[accountTypeSelect.value] : "",
-    Remarks: el("remarks").value || REMARKS_TEMPLATE(el("customerName").value, el("refName").value),
-    Subtotal: Number(subtotal.toFixed(2)),
-    VAT: Number(vat.toFixed(2)),
-    "Round Off": Number(roundOff.toFixed(2)),
-    "Net Payable": Number(netPayable.toFixed(2)),
-    "Amount In Words": amountToWords(netPayable),
+  const invoice = {
+    date: formatDisplayDate(el("invoiceDate").value),
+    customerId: el("customerId").value,
+    customerName: el("customerName").value,
+    address: el("customerAddress").value,
+    branch: branch ? branch.label : "",
+    paymentType: paymentTypeSelect.value ? PAYMENT_TYPES[paymentTypeSelect.value] : "",
+    accountType: accountTypeSelect.value ? ACCOUNT_TYPES[accountTypeSelect.value] : "",
+    remarks: el("remarks").value || REMARKS_TEMPLATE(el("customerName").value, el("refName").value),
+    subtotal: Number(subtotal.toFixed(2)),
+    vat: Number(vat.toFixed(2)),
+    roundOff: Number(roundOff.toFixed(2)),
+    netPayable: Number(netPayable.toFixed(2)),
+    amountInWords: amountToWords(netPayable),
+  };
+
+  const items = lineItems.map((li, idx) => ({
+    sr: idx + 1,
+    description: li.part.description,
+    quantity: li.qty,
+    basePrice: Number(li.part.basePrice.toFixed(2)),
+    discount: Number(li.discount.toFixed(2)),
+    price: Number(li.netPrice.toFixed(2)),
+    amount: Number(li.amount.toFixed(2)),
+  }));
+
+  // text/plain avoids a CORS preflight, which Apps Script Web Apps don't handle;
+  // the script still parses the body as JSON on its side.
+  const res = await fetch(GOOGLE_SHEETS_WEBAPP_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ invoice, items }),
   });
-
-  lineItems.forEach((li, idx) => {
-    log.items.push({
-      "Invoice No": invoiceNo,
-      Sr: idx + 1,
-      Description: li.part.description,
-      Quantity: li.qty,
-      "Base Price": Number(li.part.basePrice.toFixed(2)),
-      Discount: Number(li.discount.toFixed(2)),
-      Price: Number(li.netPrice.toFixed(2)),
-      "Amount NGN": Number(li.amount.toFixed(2)),
-    });
-  });
-
-  saveLog(log);
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(log.invoices), "Invoices");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(log.items), "Line Items");
-  XLSX.writeFile(wb, "parts-invoices-log.xlsx");
-
-  updateLogStatus();
-  return invoiceNo;
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.invoiceNo;
 }
 
 // ---------------------------------------------------------------------------
@@ -375,10 +395,32 @@ el("printBtn").addEventListener("click", () => {
   window.print();
 });
 
-el("saveExcelBtn").addEventListener("click", () => {
-  const invoiceNo = saveCurrentInvoiceToExcel();
-  alert(`Saved invoice ${invoiceNo} to parts-invoices-log.xlsx (check your Downloads folder).\n\nStarting a new invoice with the next number.`);
-  initForm(true);
+el("saveExcelBtn").addEventListener("click", async () => {
+  if (!sheetsConfigured()) {
+    alert("Google Sheets isn't connected yet. Set GOOGLE_SHEETS_WEBAPP_URL in config.js — see README.md.");
+    return;
+  }
+  const btn = el("saveExcelBtn");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+  try {
+    const invoiceNo = await saveCurrentInvoiceToSheet();
+    alert(`Saved invoice ${invoiceNo} to the Google Sheet.\n\nStarting a new invoice with the next number.`);
+    await initForm(true);
+  } catch (e) {
+    alert(`Could not save this invoice: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Save Invoice";
+  }
+});
+
+el("downloadAllBtn").addEventListener("click", () => {
+  if (!GOOGLE_SHEET_EXPORT_URL) {
+    alert("Google Sheets isn't connected yet. Set GOOGLE_SHEET_EXPORT_URL in config.js — see README.md.");
+    return;
+  }
+  window.location.href = GOOGLE_SHEET_EXPORT_URL;
 });
 
 el("resetBtn").addEventListener("click", () => {
@@ -390,11 +432,11 @@ el("resetBtn").addEventListener("click", () => {
 // Init
 // ---------------------------------------------------------------------------
 
-function initForm(assignNewInvoiceNo) {
+async function initForm(assignNewInvoiceNo) {
   initStaticDropdowns();
   applyCustomerSelection();
 
-  el("invoiceNo").value = assignNewInvoiceNo || !el("invoiceNo").value ? nextInvoiceNumber() : el("invoiceNo").value;
+  el("invoiceNo").value = "Loading…";
   el("invoiceDate").value = new Date().toISOString().slice(0, 10);
   el("refName").value = "";
   el("remarks").value = "";
@@ -402,7 +444,17 @@ function initForm(assignNewInvoiceNo) {
   rows = [newRow(0, 1)];
   renderRows();
   updatePreview();
+
+  el("invoiceNo").value = await fetchNextInvoiceNumber();
+  updatePreview();
   updateLogStatus();
 }
 
-initForm(true);
+// Master data (dropdown values) is fetched once per page load, not on every
+// new invoice — reload the page to pick up edits made in the Sheet.
+async function bootstrap() {
+  await loadMasterData();
+  await initForm(true);
+}
+
+bootstrap();
